@@ -4,7 +4,7 @@ Example to validate and reformat MAC addresses into a number of different format
 
 ## Validation
 ```
-val mac = new MacAddress("01:2:03:04:05:06")
+val mac = MacAddress("0a:0B:0c:0D:0e:0F").toList.head
 mac.isValid
 res0: Boolean = true
 ```
@@ -12,15 +12,25 @@ res0: Boolean = true
 ## Formats
 
 ```
-mac.asString
-res1: Option[String] = Some(010203040506)
+mac.toHexidecimal
+res1: String = 0a:0b:0c:0d:0e:0f
  
-mac.asFormat()
-res2: Option[String] = Some(01:02:03:04:05:06)
+mac.toBitReversed
+res2: String = 0a-0b-0c-0d-0e-0f
  
-mac.asCiscoFormat()
-res3: Option[String] = Some(0102.0304.0506)
+mac.toByteString
+res3: String = [0a,0b,0c,0d,0e,0f]
  
-mac.asBytes
-res4: Array[Byte] = Array(1, 2, 3, 4, 5, 6) 
+mac.toDotNotation
+res4: String = 0a0b.0c0d.0e0f
+ 
+mac.toHexString
+res5: String = 0a0b0c0d0e0f
 ```
+
+## Generate random mac
+```
+MacAddress.getRandomMACAddress
+res6: String = b5:bc:ce:52:db:b8
+```
+
