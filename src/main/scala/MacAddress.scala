@@ -2,68 +2,23 @@ import scala.util.matching.Regex
 import scalaz.{Failure, Success, Validation}
 
 trait MacType {
-  lazy val MacStringRE: Regex = "^(([0-9A-Fa-f]){12})$".r
-  lazy val MacFormatRE: Regex = "(([0-9A-Fa-f]{2}[\\.:-]){5}([0-9A-Fa-f]{2}))".r
-  lazy val MacFormatZeroRE: Regex = "(([0-9A-Fa-f]{1,2}[\\.:-]){5}([0-9A-Fa-f]{1,2}))".r
-  lazy val MacCiscoRE: Regex = "([0-9a-fA-F]{4}[\\.:-][0-9a-fA-F]{4}[\\.:-][0-9a-fA-F]{4})$".r
-
-  protected def isValid(mac: String): Boolean = {
-    mac match {
-      case MacFormatRE(a, _*) => true
-      case MacStringRE(a, _*) => true
-      case MacFormatZeroRE(a, _*) => true
-      case MacCiscoRE(a, _*) => true
-      case _ => false
-    }
-  }
 
   /**
     * Return Mac as string, without any formatting, i.e., 010203040506
     * @return
     */
-  protected def toHexString(mac: String): String = {
-    (mac match {
-      case MacFormatRE(a, _*) => a.replaceAll(":","").replaceAll("\\.","").replaceAll("-","")
-      case MacCiscoRE(a, _*) => a.replaceAll(":","").replaceAll("\\.","").replaceAll("-","")
-      case MacFormatZeroRE(a, _*) =>
-        val sb = new StringBuilder
-        a.split("[\\.:-]").foreach( b => {
-          if (b.length == 1) sb.append(s"0$b") else sb.append(b)
-        })
-        sb.mkString
-      case MacStringRE(a, _*) => a
-      case _ => ""
-    }).toLowerCase
-  }
+  protected def toHexString(mac: String): String = mac
 
   /**
     * Return Mac address as a colon delimited string, i.e., 01:02:03:04:05:06
     * @return
     */
   protected def toHexidecimal(mac: String, delimiter: Char = ':'): String = {
-    (mac match {
-      // scalastyle:off magic.number
-      case MacStringRE(a, _*) => a.replaceAll("(.{2})", "$1" + delimiter).substring(0, 17)
-      // scalastyle:on magic.number
-      case MacFormatRE(a, _*) =>
-        a.replaceAll("\\.",delimiter.toString).replaceAll("-",delimiter.toString).replaceAll(":", delimiter.toString)
-      case MacCiscoRE(a, _*) => toHexidecimal(toHexString(mac), delimiter)
-      case MacFormatZeroRE(a, _*) => toHexidecimal(toHexString(mac),delimiter)
-      case _ => ""
-    }).toLowerCase
+    mac.replaceAll("(.{2})", "$1" + delimiter).substring(0, 17)
   }
 
   protected def toDotNotation(mac: String, delimiter: Char = '.'): String = {
-    (mac match {
-      // scalastyle:off magic.number
-      case MacStringRE(a, _*) => a.replaceAll("(.{4})", "$1" + delimiter).substring(0, 14)
-      // scalastyle:on magic.number
-      case MacFormatRE(a, _*) => toDotNotation(toHexString(mac), delimiter)
-      case MacCiscoRE(a, _*) =>
-        a.replaceAll("\\.",delimiter.toString).replaceAll("-",delimiter.toString).replaceAll(":", delimiter.toString)
-      case MacFormatZeroRE(a, _*) => toDotNotation(toHexString(mac), delimiter)
-      case _ => ""
-    }).toLowerCase
+    mac.replaceAll("(.{4})", "$1" + delimiter).substring(0, 14)
   }
 
   protected def toBytes(mac: String): Array[Byte] = {
@@ -83,9 +38,9 @@ trait MacType {
 }
 
 class MacAddress private (mac: String) extends MacType {
+  // Saved in hexidecimal string format
   val macAddress: String = mac
 
-  def isValid: Boolean = super.isValid(macAddress)
   override def toString: String = super.toHexString(macAddress)
   def toBytes: Array[Byte] = super.toBytes(macAddress)
   def toDotNotation: String = super.toDotNotation(macAddress)
@@ -99,8 +54,29 @@ class MacAddress private (mac: String) extends MacType {
 }
 
 object MacAddress extends MacType {
+  private lazy val MacStringRE: Regex = "^(([0-9A-Fa-f]){12})$".r
+  private lazy val MacFormatRE: Regex = "(([0-9A-Fa-f]{2}[\\.:-]){5}([0-9A-Fa-f]{2}))".r
+  private lazy val MacFormatZeroRE: Regex = "(([0-9A-Fa-f]{1,2}[\\.:-]){5}([0-9A-Fa-f]{1,2}))".r
+  private lazy val MacCiscoRE: Regex = "([0-9a-fA-F]{4}[\\.:-][0-9a-fA-F]{4}[\\.:-][0-9a-fA-F]{4})$".r
+
   def apply(mac: String): Validation[String, MacAddress] = {
-    if (!super.isValid(mac)) Failure(s"Unable to recognize MAC format for $mac") else Success(new MacAddress(mac))
+//    if (!super.isValid(mac)) Failure(s"Unable to recognize MAC format for $mac") else Success(new MacAddress(super.asHexString(mac))))
+    /**
+      * Return Mac as hexidecimal string, without any formatting, i.e., 010203040506
+      * @return
+      */
+      mac match {
+        case MacFormatRE(a, _*) => Success(new MacAddress(a.replaceAll(":","").replaceAll("\\.","").replaceAll("-","").toLowerCase))
+        case MacCiscoRE(a, _*) => Success(new MacAddress(a.replaceAll(":","").replaceAll("\\.","").replaceAll("-","").toLowerCase))
+        case MacFormatZeroRE(a, _*) =>
+          val sb = new StringBuilder
+          a.split("[\\.:-]").foreach( b => {
+            if (b.length == 1) sb.append(s"0$b") else sb.append(b)
+          })
+          Success(new MacAddress(sb.mkString.toLowerCase))
+        case MacStringRE(a, _*) => Success(new MacAddress(a.toLowerCase))
+        case _ => Failure(s"Unable to recognize MAC format for $mac")
+      }
   }
 
   def getRandomMACAddress: String = {
