@@ -21,8 +21,8 @@ trait MacType {
     * Return Mac as string, without any formatting, i.e., 010203040506
     * @return
     */
-  protected def toString(mac: String): String = {
-    mac match {
+  protected def toHexString(mac: String): String = {
+    (mac match {
       case MacFormatRE(a, _*) => a.replaceAll(":","").replaceAll("\\.","").replaceAll("-","")
       case MacCiscoRE(a, _*) => a.replaceAll(":","").replaceAll("\\.","").replaceAll("-","")
       case MacFormatZeroRE(a, _*) =>
@@ -33,45 +33,45 @@ trait MacType {
         sb.mkString
       case MacStringRE(a, _*) => a
       case _ => ""
-    }
+    }).toLowerCase
   }
 
   /**
     * Return Mac address as a colon delimited string, i.e., 01:02:03:04:05:06
     * @return
     */
-  protected def toFormat(mac: String, delimiter: Char = ':'): String = {
-    mac match {
+  protected def toHexidecimal(mac: String, delimiter: Char = ':'): String = {
+    (mac match {
       // scalastyle:off magic.number
       case MacStringRE(a, _*) => a.replaceAll("(.{2})", "$1" + delimiter).substring(0, 17)
       // scalastyle:on magic.number
       case MacFormatRE(a, _*) =>
         a.replaceAll("\\.",delimiter.toString).replaceAll("-",delimiter.toString).replaceAll(":", delimiter.toString)
-      case MacCiscoRE(a, _*) => toFormat(toString(mac), delimiter)
-      case MacFormatZeroRE(a, _*) => toFormat(toString(mac),delimiter)
+      case MacCiscoRE(a, _*) => toHexidecimal(toHexString(mac), delimiter)
+      case MacFormatZeroRE(a, _*) => toHexidecimal(toHexString(mac),delimiter)
       case _ => ""
-    }
+    }).toLowerCase
   }
 
-  protected def toCiscoFormat(mac: String, delimiter: Char = '.'): String = {
-    mac match {
+  protected def toDotNotation(mac: String, delimiter: Char = '.'): String = {
+    (mac match {
       // scalastyle:off magic.number
       case MacStringRE(a, _*) => a.replaceAll("(.{4})", "$1" + delimiter).substring(0, 14)
       // scalastyle:on magic.number
-      case MacFormatRE(a, _*) => toCiscoFormat(toString(mac), delimiter)
+      case MacFormatRE(a, _*) => toDotNotation(toHexString(mac), delimiter)
       case MacCiscoRE(a, _*) =>
         a.replaceAll("\\.",delimiter.toString).replaceAll("-",delimiter.toString).replaceAll(":", delimiter.toString)
-      case MacFormatZeroRE(a, _*) => toCiscoFormat(toString(mac), delimiter)
+      case MacFormatZeroRE(a, _*) => toDotNotation(toHexString(mac), delimiter)
       case _ => ""
-    }
+    }).toLowerCase
   }
 
   protected def toBytes(mac: String): Array[Byte] = {
-    toString(mac).replaceAll("[^0-9A-Fa-f]", "").sliding(2, 2).toArray.map(Integer.parseInt(_, 16).toByte)
+    toHexString(mac).replaceAll("[^0-9A-Fa-f]", "").sliding(2, 2).toArray.map(Integer.parseInt(_, 16).toByte)
   }
 
   protected def toLong(mac: String): Long = {
-    val hb = toBytes(toFormat(mac))
+    val hb = toBytes(toHexidecimal(mac))
     var longMac = 0L
     for (i <- hb.indices) {
       val t: Long = (hb(i) & 0xffL) << ((5 - i) * 8)
@@ -86,18 +86,26 @@ class MacAddress private (mac: String) extends MacType {
   val macAddress: String = mac
 
   def isValid: Boolean = super.isValid(macAddress)
-  override def toString: String = super.toString(macAddress)
+  override def toString: String = super.toHexString(macAddress)
   def toBytes: Array[Byte] = super.toBytes(macAddress)
-  def toCiscoFormat: String = super.toCiscoFormat(macAddress)
-  def toCiscoFormat(delimiter: Char): String = super.toCiscoFormat(macAddress, delimiter)
-  def toFormat: String = super.toFormat(macAddress)
-  def toFormat(delimiter: Char): String = super.toFormat(macAddress, delimiter)
+  def toDotNotation: String = super.toDotNotation(macAddress)
+  def toDotNotation(delimiter: Char): String = super.toDotNotation(macAddress, delimiter)
+  def toHexidecimal: String = super.toHexidecimal(macAddress)
+  def toHexidecimal(delimiter: Char): String = super.toHexidecimal(macAddress, delimiter)
+  def toBitReversed: String = toHexidecimal(macAddress, '-')
+  def toByteString: String = s"[${toBytes.map("%02x" format _).mkString(",")}]"
+  def toHexString: String = toString
   def toLong: Long = super.toLong(macAddress)
 }
 
 object MacAddress extends MacType {
   def apply(mac: String): Validation[String, MacAddress] = {
     if (!super.isValid(mac)) Failure(s"Unable to recognize MAC format for $mac") else Success(new MacAddress(mac))
+  }
+
+  def getRandomMACAddress: String = {
+    val random = new util.Random
+    Array.fill[String](6)(f"${random.nextInt(255)}%02x").mkString(":")
   }
 }
 
